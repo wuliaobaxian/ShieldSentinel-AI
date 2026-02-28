@@ -1,0 +1,30 @@
+// ShieldSentinel AI - Prisma Schema
+// Database: SQLite (local, zero-config)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model SecurityLog {
+  id           String   @id @default(cuid())
+  timestamp    DateTime @default(now())
+  rawPrompt    String
+  maskedPrompt String
+  riskLevel    String   // LOW | MEDIUM | HIGH | CRITICAL
+  attackType   String   // NONE | PII_DETECTED | PROMPT_INJECTION | VECTOR_SIMILARITY | COMBINED
+  latency      Int      // milliseconds, total scan duration
+  modelUsed    String   // e.g. "glm-4.6v" | "gpt-4o-mini"
+  blocked      Boolean  @default(false)
+  triggeredRules String  // JSON string of rule names that fired
+  similarityScore Float? // cosine similarity score if vector check triggered
+  sessionId    String?  // optional session grouping
+
+  @@index([timestamp])
+  @@index([riskLevel])
+  @@index([attackType])
+}
