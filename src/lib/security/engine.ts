@@ -13,7 +13,7 @@ import { detectAndMaskPII } from "./pii-detector";
 import { detectInjection, calculateRiskLevel, RISK_PRIORITY } from "./injection-detector";
 import { vectorSimilarityCheck } from "./vector-detector";
 import { SecurityScanResult, AttackType, RiskLevel } from "@/types/security";
-import { prisma } from "@/lib/prisma";
+import { prisma, ensureSchema } from "@/lib/prisma";
 
 // ---- Configuration ----
 
@@ -127,6 +127,9 @@ async function persistAuditLog(
   modelUsed: string,
   sessionId?: string
 ): Promise<void> {
+  // Ensure the SQLite schema exists (no-op if already created or DB is healthy)
+  await ensureSchema();
+
   // GDPR Article 5(1)(c) — Data Minimisation:
   //   rawPrompt field stores SHA-256 hash ONLY — never the original text.
   //   maskedPrompt stores the PII-scrubbed version — safe to persist.

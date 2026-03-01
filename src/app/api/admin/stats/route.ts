@@ -5,10 +5,40 @@
 // =====================================================
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, ensureSchema } from "@/lib/prisma";
+
+// Canonical attack types — needed in both success and fallback paths
+const CANONICAL = [
+  "PROMPT_INJECTION",
+  "PII_DETECTED",
+  "VECTOR_SIMILARITY",
+  "COMBINED",
+] as const;
+
+/** Empty-but-valid stats returned when the DB is unavailable (e.g. Vercel cold start). */
+function emptyStats() {
+  const now = Date.now();
+  const timeline = Array.from({ length: 24 }, (_, i) => {
+    const h = new Date(now - (23 - i) * 3_600_000);
+    const label = `${String(h.getHours()).padStart(2, "0")}:00`;
+    return { hour: label, label: i % 4 === 0 ? label : "", total: 0, blocked: 0 };
+  });
+  return NextResponse.json({
+    timeline,
+    attackBreakdown: CANONICAL.map((name) => ({ name, value: 0 })),
+    sessionRanking:  [],
+    summary: {
+      total24h: 0, blocked24h: 0, piiDetected: 0,
+      avgLatencyMs: 0, allTimeTotal: 0, blockRate24h: 0,
+    },
+  });
+}
 
 export async function GET() {
   try {
+    // Bootstrap SQLite schema on Vercel serverless cold starts
+    await ensureSchema();
+
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     // ── Parallel DB queries for performance ──────────────────────────────────
@@ -71,7 +101,6 @@ export async function GET() {
     // ── Attack type breakdown (pie data) ─────────────────────────────────────
     // Always return all 4 canonical types — zero-count entries included so the
     // frontend legend never goes missing even when a category has no events yet.
-    const CANONICAL = ["PROMPT_INJECTION", "PII_DETECTED", "VECTOR_SIMILARITY", "COMBINED"] as const;
     const atkMap: Record<string, number> = Object.fromEntries(CANONICAL.map((t) => [t, 0]));
     for (const log of recentLogs) {
       if (log.attackType !== "NONE" && log.attackType in atkMap) {
@@ -138,7 +167,9 @@ export async function GET() {
       },
     });
   } catch (err) {
-    console.error("[AdminStats]", err);
-    return NextResponse.json({ error: "stats_error" }, { status: 500 });
+    // DB unavailable (e.g. /tmp empty on Vercel cold start) — serve empty
+    // dashboard instead of an error page so the UI stays functional.
+    console.warn("[AdminStats] DB unavailable, returning empty stats:", (err as Error).message);
+    return emptyStats();
   }
 }
