@@ -49,16 +49,26 @@ const SESSION_ID_KEY = "chat_session_id";
 
 // ── Session ID helpers ─────────────────────────────────────────────────────────
 
+/**
+ * Converts a raw UUID to a human-readable "User-XXXX" tag.
+ * Takes the first 4 hex chars (after stripping dashes) so the result
+ * looks like "User-8f2a", "User-b3d9", etc.
+ */
+function toReadableId(uuid: string): string {
+  return "User-" + uuid.replace(/-/g, "").slice(0, 4);
+}
+
 function getOrCreateSessionId(): string {
   try {
     const existing = localStorage.getItem(SESSION_ID_KEY);
     if (existing) return existing;
-    const fresh = crypto.randomUUID();
-    localStorage.setItem(SESSION_ID_KEY, fresh);
-    return fresh;
+    // Always store in readable "User-xxxx" format — never raw UUID
+    const readableId = toReadableId(crypto.randomUUID());
+    localStorage.setItem(SESSION_ID_KEY, readableId);
+    return readableId;
   } catch {
     // SSR / private browsing — generate ephemeral ID without persisting
-    return crypto.randomUUID();
+    return toReadableId(crypto.randomUUID());
   }
 }
 

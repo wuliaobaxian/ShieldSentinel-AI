@@ -161,8 +161,17 @@ const RECHARTS_TOOLTIP_STYLE = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Display-friendly session label. Short IDs shown as-is; UUIDs abbreviated. */
-function truncateId(id: string): string {
+/**
+ * Display-friendly session label for the ranking panel.
+ *
+ *  • "Sim-*"  → red-team simulator names, shown as-is
+ *  • "User-*" → already formatted readable IDs, shown as-is
+ *  • Raw UUID → abbreviated to "User-{first-8-hex}" (safety net for legacy rows)
+ *  • Anything else long → truncated to "XXXXXXXX…XXXX"
+ */
+function formatSessionId(id: string): string {
+  if (id.startsWith("Sim-") || id.startsWith("User-")) return id;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)) return `User-${id.replace(/-/g, "").slice(0, 4)}`;
   return id.length <= 22 ? id : `${id.slice(0, 8)}…${id.slice(-4)}`;
 }
 
@@ -333,7 +342,7 @@ function generateGDPRMarkdown(stats: AdminStats): string {
       ? stats.sessionRanking
           .map(
             (s, i) =>
-              `| ${i + 1} | \`${s.sessionId}\` | ${s.blocked} | ${s.total} | ${Math.round((s.blocked / s.total) * 100)}% |`
+              `| ${i + 1} | \`${formatSessionId(s.sessionId)}\` | ${s.blocked} | ${s.total} | ${Math.round((s.blocked / s.total) * 100)}% |`
           )
           .join("\n")
       : "| — | 暂无高风险会话数据 | — | — | — |";
@@ -896,7 +905,7 @@ export default function AdminDashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-mono text-white/70 truncate">
-                              {truncateId(s.sessionId)}
+                              {formatSessionId(s.sessionId)}
                             </span>
                             <span
                               className="text-[11px] font-semibold tabular-nums shrink-0 ml-2"
