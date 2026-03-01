@@ -170,9 +170,21 @@ export async function POST(req: NextRequest) {
       return msg;
     });
 
+    // ---- Prepend system prompt ----
+    // Grounds GLM-4V-PLUS so it responds as a text assistant and does not
+    // hallucinate image content when none is present in the conversation.
+    const SYSTEM_PROMPT: OpenAI.Chat.ChatCompletionMessageParam = {
+      role: "system",
+      content:
+        "You are a helpful AI assistant. " +
+        "This is a text-only conversation — there are no images, files, or attachments. " +
+        "Respond only to the text content of the user's messages. " +
+        "Do not mention or assume the presence of images or media unless the user explicitly describes one.",
+    };
+
     // ---- Call LLM with fallback ----
     const llmStream = await callWithFallback(
-      sanitizedMessages,
+      [SYSTEM_PROMPT, ...sanitizedMessages],
       (model) => { selectedModel = model; }
     );
 
